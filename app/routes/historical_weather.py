@@ -1,4 +1,3 @@
-
 from flask import Blueprint, jsonify, request
 
 from app.services.historical_weather_query_service import (
@@ -12,6 +11,29 @@ historical_weather_bp = Blueprint(
 )
 
 
+def serialize_historical_weather_record(record):
+    """Return the complete public representation of a historical observation."""
+
+    return {
+        "id": record.id,
+        "latitude": record.latitude,
+        "longitude": record.longitude,
+        "temperature_c": record.temperature_c,
+        "rainfall_mm": record.rainfall_mm,
+        "precipitation_interval_seconds": (
+            record.precipitation_interval_seconds
+        ),
+        "wind_speed_kmh": record.wind_speed_kmh,
+        "weather_code": record.weather_code,
+        "recorded_at": record.recorded_at.isoformat(),
+        "source": record.source,
+        "created_at": (
+            record.created_at.isoformat()
+            if record.created_at else None
+        ),
+    }
+
+
 # GET /api/historical-weather
 # Retrieves historical weather observations with optional date,
 # location-radius and pagination filters.
@@ -21,7 +43,6 @@ historical_weather_bp = Blueprint(
 )
 def get_historical_weather():
     try:
-        # Read optional filters from URL query parameters.
         latitude = request.args.get("latitude", type=float)
         longitude = request.args.get("longitude", type=float)
         radius_km = request.args.get("radius_km", type=float)
@@ -32,7 +53,6 @@ def get_historical_weather():
         page = request.args.get("page", default=1, type=int)
         per_page = request.args.get("per_page", default=20, type=int)
 
-        # Retrieve matching historical weather observations.
         result = get_historical_weather_records(
             latitude=latitude,
             longitude=longitude,
@@ -43,15 +63,12 @@ def get_historical_weather():
             per_page=per_page,
         )
 
-        # Location-filtered results use a dictionary.
         if isinstance(result, dict):
             records = result["items"]
             total = result["total"]
             current_page = result["page"]
             page_size = result["per_page"]
             total_pages = result["pages"]
-
-        # Date-only or unfiltered results use Flask-SQLAlchemy pagination.
         else:
             records = result.items
             total = result.total
@@ -69,17 +86,7 @@ def get_historical_weather():
                 "total_pages": total_pages,
             },
             "data": [
-                {
-                    "id": record.id,
-                    "latitude": record.latitude,
-                    "longitude": record.longitude,
-                    "temperature_c": record.temperature_c,
-                    "rainfall_mm": record.rainfall_mm,
-                    "wind_speed_kmh": record.wind_speed_kmh,
-                    "weather_code": record.weather_code,
-                    "recorded_at": record.recorded_at.isoformat(),
-                    "source": record.source,
-                }
+                serialize_historical_weather_record(record)
                 for record in records
             ],
         }), 200
@@ -92,7 +99,7 @@ def get_historical_weather():
 
 
 # GET /api/historical-weather/<record_id>
-# Retrieves the details of one historical weather observation.
+# Retrieves the complete details of one historical weather observation.
 @historical_weather_bp.route(
     "/api/historical-weather/<int:record_id>",
     methods=["GET"],
@@ -108,15 +115,5 @@ def get_historical_weather_details(record_id):
 
     return jsonify({
         "status": "success",
-        "data": {
-            "id": record.id,
-            "latitude": record.latitude,
-            "longitude": record.longitude,
-            "temperature_c": record.temperature_c,
-            "rainfall_mm": record.rainfall_mm,
-            "wind_speed_kmh": record.wind_speed_kmh,
-            "weather_code": record.weather_code,
-            "recorded_at": record.recorded_at.isoformat(),
-            "source": record.source,
-        },
+        "data": serialize_historical_weather_record(record),
     }), 200

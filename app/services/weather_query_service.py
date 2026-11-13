@@ -1,12 +1,34 @@
-# This file Reads saved weather records from SQLite
-from app.models.weather_record import WeatherRecord
+# Reads saved weather records for a specific location.
 from datetime import datetime, timezone
+
+from app.models.weather_record import WeatherRecord
+
+
+def serialize_weather_record(record):
+    """Return the safe, consistent API representation of a stored observation."""
+
+    return {
+        "id": record.id,
+        "latitude": record.latitude,
+        "longitude": record.longitude,
+        "rainfall_mm": record.rainfall_mm,
+        "precipitation_interval_seconds": (
+            record.precipitation_interval_seconds
+        ),
+        "temperature_c": record.temperature_c,
+        "wind_speed_kmh": record.wind_speed_kmh,
+        "source": record.source,
+        "recorded_at": record.recorded_at.isoformat(),
+        "created_at": (
+            record.created_at.isoformat()
+            if record.created_at else None
+        ),
+    }
 
 
 def get_latest_weather(latitude, longitude):
     """
-    Retrieve the latest stored weather observation
-    for a geographical location.
+    Retrieve the latest stored weather observation for exact coordinates.
     """
 
     record = (
@@ -15,55 +37,50 @@ def get_latest_weather(latitude, longitude):
             latitude=latitude,
             longitude=longitude
         )
-        .order_by(WeatherRecord.recorded_at.desc())
+        .order_by(
+            WeatherRecord.recorded_at.desc(),
+            WeatherRecord.id.desc()
+        )
         .first()
     )
 
     if record is None:
         return None
 
-    return {
-        "id": record.id,
-        "latitude": record.latitude,
-        "longitude": record.longitude,
-        "rainfall_mm": record.rainfall_mm,
-        "temperature_c": record.temperature_c,
-        "wind_speed_kmh": record.wind_speed_kmh,
-        "source": record.source,
-        "recorded_at": record.recorded_at.isoformat()
-    }
+    return serialize_weather_record(record)
+
 
 def get_weather_history(latitude, longitude, limit=24):
+    """Retrieve the newest stored weather observations for exact coordinates."""
+
     records = (
         WeatherRecord.query
         .filter_by(
             latitude=latitude,
             longitude=longitude
         )
-        .order_by(WeatherRecord.recorded_at.desc())
+        .order_by(
+            WeatherRecord.recorded_at.desc(),
+            WeatherRecord.id.desc()
+        )
         .limit(limit)
         .all()
     )
 
     return [
-        {
-            "id": record.id,
-            "latitude": record.latitude,
-            "longitude": record.longitude,
-            "rainfall_mm": record.rainfall_mm,
-            "temperature_c": record.temperature_c,
-            "wind_speed_kmh": record.wind_speed_kmh,
-            "source": record.source,
-            "recorded_at": record.recorded_at.isoformat()
-        }
+        serialize_weather_record(record)
         for record in records
     ]
+
+
 def get_weather_history_by_date(
     latitude,
     longitude,
     start_date,
     end_date
 ):
+    """Retrieve stored weather observations inside an ISO 8601 time range."""
+
     start_datetime = datetime.fromisoformat(start_date)
     end_datetime = datetime.fromisoformat(end_date)
 
@@ -81,20 +98,14 @@ def get_weather_history_by_date(
             WeatherRecord.recorded_at >= start_datetime,
             WeatherRecord.recorded_at <= end_datetime
         )
-        .order_by(WeatherRecord.recorded_at.asc())
+        .order_by(
+            WeatherRecord.recorded_at.asc(),
+            WeatherRecord.id.asc()
+        )
         .all()
     )
 
     return [
-        {
-            "id": record.id,
-            "latitude": record.latitude,
-            "longitude": record.longitude,
-            "rainfall_mm": record.rainfall_mm,
-            "temperature_c": record.temperature_c,
-            "wind_speed_kmh": record.wind_speed_kmh,
-            "source": record.source,
-            "recorded_at": record.recorded_at.isoformat()
-        }
+        serialize_weather_record(record)
         for record in records
     ]

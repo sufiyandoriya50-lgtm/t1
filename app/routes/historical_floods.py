@@ -1,23 +1,20 @@
 import os
+import tempfile
+
 from flask import Blueprint, jsonify, request, current_app
-from flask_jwt_extended import get_jwt_identity
-from werkzeug.utils import secure_filename
+
+from app.extensions import db
 
 from app.services.historical_flood_import_service import (
     import_historical_flood_csv,
 )
-from app.extensions import db
-from app.models.user import User
-
 from app.services.historical_flood_storage_service import (
-    create_historical_flood_event
+    create_historical_flood_event,
 )
-
 from app.services.historical_flood_query_service import (
     get_historical_flood_event,
-    get_all_historical_flood_events
+    get_all_historical_flood_events,
 )
-
 from app.utils.auth import admin_required
 
 
@@ -34,7 +31,6 @@ historical_floods_bp = Blueprint(
     methods=["GET"]
 )
 def get_historical_floods():
-
     try:
         severity = request.args.get("severity")
         start_date = request.args.get("start_date")
@@ -106,6 +102,9 @@ def get_historical_floods():
 
     except Exception:
         db.session.rollback()
+        current_app.logger.exception(
+            "Unable to retrieve historical flood events"
+        )
         return jsonify({
             "status": "error",
             "message": "Unable to retrieve historical flood events"
@@ -119,7 +118,6 @@ def get_historical_floods():
     methods=["GET"]
 )
 def get_historical_flood_details(event_id):
-
     event = get_historical_flood_event(event_id)
 
     if event is None:
@@ -153,7 +151,6 @@ def get_historical_flood_details(event_id):
 )
 @admin_required
 def create_historical_flood():
-
     data = request.get_json(silent=True)
 
     if not isinstance(data, dict):
@@ -177,7 +174,7 @@ def create_historical_flood():
 
         return jsonify({
             "status": "success",
-            "message": "Historical flood event created successfully",
+            "message": "Historical event created successfully",
             "event_id": event.id
         }), 201
 
@@ -189,13 +186,17 @@ def create_historical_flood():
 
     except Exception:
         db.session.rollback()
+        current_app.logger.exception(
+            "Unable to create historical flood event"
+        )
         return jsonify({
             "status": "error",
             "message": "Unable to create historical flood event"
         }), 500
 
+
 # POST /api/admin/historical-floods/import
-# Allows an administrator to upload a CSV file containing historical flood events.
+# Imports a CSV file without allowing concurrent uploads to overwrite each other.
 @historical_floods_bp.route(
     "/api/admin/historical-floods/import",
     methods=["POST"],
@@ -204,15 +205,15 @@ def create_historical_flood():
 def import_historical_floods():
     uploaded_file = request.files.get("file")
 
-    if uploaded_file is None or uploaded_file.filename == "":
+    if uploaded_file is None or not uploaded_file.filename:
         return jsonify({
             "status": "error",
             "message": "Please upload a CSV file using the 'file' field",
         }), 400
 
-    filename = secure_filename(uploaded_file.filename)
+    extension = os.path.splitext(uploaded_file.filename)[1].lower()
 
-    if not filename.lower().endswith(".csv"):
+    if extension != ".csv":
         return jsonify({
             "status": "error",
             "message": "Only CSV files are allowed",
@@ -226,9 +227,16 @@ def import_historical_floods():
 
     os.makedirs(upload_directory, exist_ok=True)
 
-    file_path = os.path.join(upload_directory, filename)
+    file_path = None
 
     try:
+        file_descriptor, file_path = tempfile.mkstemp(
+            prefix="historical-flood-",
+            suffix=".csv",
+            dir=upload_directory,
+        )
+        os.close(file_descriptor)
+
         uploaded_file.save(file_path)
 
         result = import_historical_flood_csv(file_path)
@@ -247,12 +255,19 @@ def import_historical_floods():
 
     except Exception:
         db.session.rollback()
-
+        current_app.logger.exception(
+            "Unexpected error during historical flood CSV import"
+        )
         return jsonify({
             "status": "error",
             "message": "An unexpected error occurred during CSV import",
         }), 500
 
     finally:
-        if os.path.exists(file_path):
-            os.remove(file_path)    
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError:
+                current_app.logger.exception(
+                    "Unable to remove temporary historical flood CSV file"
+                )

@@ -1,67 +1,81 @@
-from flask import Blueprint, jsonify, request
+
 from datetime import datetime
+
+from flask import Blueprint, jsonify, request
 
 from app.services.weather_service import get_current_weather
 from app.services.weather_storage_service import save_weather_record
-from app.services.weather_query_service import get_latest_weather
-from app.services.weather_query_service import get_weather_history
-from app.services.weather_query_service import get_weather_history_by_date
+from app.services.weather_query_service import (
+    get_latest_weather,
+    get_weather_history,
+    get_weather_history_by_date,
+)
+from app.utils.auth import admin_required
+
+
 weather_bp = Blueprint("weather", __name__)
 
-#gets current weather data from open_meteo api directly
+
+# Validates geographical coordinates supplied to weather endpoints.
+def validate_coordinates(latitude, longitude):
+    if latitude is None or longitude is None:
+        return False
+
+    return (
+        -90 <= latitude <= 90
+        and -180 <= longitude <= 180
+    )
+
+
+# Retrieves current weather data from Open-Meteo.
 @weather_bp.route("/api/weather/current", methods=["GET"])
 def current_weather():
-    """
-    Get current weather for a geographical location.
-    """
-
     latitude = request.args.get("latitude", type=float)
     longitude = request.args.get("longitude", type=float)
 
-    if latitude is None or longitude is None:
-        return (
-            jsonify(
-                {"status": "error", "message": "Latitude and longitude are required"}
-            ),
-            400,
-        )
-
-    try:
-        #fetches live weather data
-        weather = get_current_weather(latitude, longitude)
-      
-        return (
-            jsonify(
-                {
-                    "status": "success",
-                    "message": "Weather fetched successfully",
-                    "data": weather
-                }
-            ),
-            200,
-        )
-
-    except ValueError as error:
-        return jsonify({"status": "error", "message": str(error)}), 400
-
-    except RuntimeError as error:
-        return jsonify({"status": "error", "message": str(error)}), 502
-
-# this gets live weather records from external source and saves it    
-@weather_bp.route("/api/weather/collect", methods=["POST"])
-def collect_weather():
-    latitude = request.args.get("latitude", type=float)
-    longitude = request.args.get("longitude", type=float)
-
-    if latitude is None or longitude is None:
+    if not validate_coordinates(latitude, longitude):
         return jsonify({
             "status": "error",
-            "message": "Latitude and longitude are required"
+            "message": "Valid latitude and longitude are required"
         }), 400
 
     try:
         weather = get_current_weather(latitude, longitude)
 
+        return jsonify({
+            "status": "success",
+            "message": "Weather fetched successfully",
+            "data": weather
+        }), 200
+
+    except ValueError as error:
+        return jsonify({
+            "status": "error",
+            "message": str(error)
+        }), 400
+
+    except RuntimeError as error:
+        return jsonify({
+            "status": "error",
+            "message": str(error)
+        }), 502
+
+
+# Fetches current weather and saves it; restricted to administrators.
+@weather_bp.route("/api/weather/collect", methods=["POST"])
+@admin_required
+def collect_weather():
+    latitude = request.args.get("latitude", type=float)
+    longitude = request.args.get("longitude", type=float)
+
+    if not validate_coordinates(latitude, longitude):
+        return jsonify({
+            "status": "error",
+            "message": "Valid latitude and longitude are required"
+        }), 400
+
+    try:
+        weather = get_current_weather(latitude, longitude)
         saved_record = save_weather_record(weather)
 
         return jsonify({
@@ -84,16 +98,18 @@ def collect_weather():
             "status": "error",
             "message": str(error)
         }), 502
-# Retrives existing latest weather data from database and also requested specific data 
+
+
+# Retrieves the latest stored weather record for supplied coordinates.
 @weather_bp.route("/api/weather/latest", methods=["GET"])
 def latest_weather():
     latitude = request.args.get("latitude", type=float)
     longitude = request.args.get("longitude", type=float)
 
-    if latitude is None or longitude is None:
+    if not validate_coordinates(latitude, longitude):
         return jsonify({
             "status": "error",
-            "message": "Latitude and longitude are required"
+            "message": "Valid latitude and longitude are required"
         }), 400
 
     try:
@@ -115,17 +131,19 @@ def latest_weather():
             "status": "error",
             "message": "Unable to retrieve weather records"
         }), 500
-# to get the records from database in limit under 100 
+
+
+# Retrieves a limited number of stored weather records.
 @weather_bp.route("/api/weather/history", methods=["GET"])
 def weather_history():
     latitude = request.args.get("latitude", type=float)
     longitude = request.args.get("longitude", type=float)
     limit = request.args.get("limit", default=24, type=int)
 
-    if latitude is None or longitude is None:
+    if not validate_coordinates(latitude, longitude):
         return jsonify({
             "status": "error",
-            "message": "Latitude and longitude are required"
+            "message": "Valid latitude and longitude are required"
         }), 400
 
     if limit < 1 or limit > 100:
@@ -135,11 +153,7 @@ def weather_history():
         }), 400
 
     try:
-        records = get_weather_history(
-            latitude,
-            longitude,
-            limit
-        )
+        records = get_weather_history(latitude, longitude, limit)
 
         return jsonify({
             "status": "success",
@@ -152,7 +166,9 @@ def weather_history():
             "status": "error",
             "message": "Unable to retrieve weather history"
         }), 500
-#this route gives filtered data from database by dates
+
+
+# Retrieves stored weather records within an ISO 8601 date range.
 @weather_bp.route("/api/weather/history/date-range", methods=["GET"])
 def weather_history_date_range():
     latitude = request.args.get("latitude", type=float)
@@ -161,14 +177,15 @@ def weather_history_date_range():
     end_date = request.args.get("end_date")
 
     if (
-        latitude is None
-        or longitude is None
+        not validate_coordinates(latitude, longitude)
         or not start_date
         or not end_date
     ):
         return jsonify({
             "status": "error",
-            "message": "Latitude, longitude, start_date and end_date are required"
+            "message": (
+                "Valid latitude, longitude, start_date and end_date are required"
+            )
         }), 400
 
     try:
@@ -203,5 +220,5 @@ def weather_history_date_range():
     except Exception:
         return jsonify({
             "status": "error",
-            "message": "Unable to retrieve weather history"
-        }), 500    
+            "message": "Unable to retrieve weather records"
+        }), 500

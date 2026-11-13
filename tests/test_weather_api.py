@@ -1,20 +1,55 @@
 
 import pytest
+from flask_jwt_extended import create_access_token
 
-from app import create_app
-from app.config import TestingConfig
+from app.extensions import db
+from app.models.user import User
 
 
-# Creates a Flask application configured for API tests.
+# Creates an authenticated administrator for protected weather collection tests.
 @pytest.fixture
-def app():
-    return create_app(TestingConfig)
+def admin_client(app, client):
+    with app.app_context():
+        admin = User(
+            name="Weather Test Admin",
+            email="weather-admin@example.com",
+            role="admin"
+        )
+        db.session.add(admin)
+        db.session.commit()
+
+        access_token = create_access_token(
+            identity=str(admin.id)
+        )
+
+        client.environ_base["HTTP_AUTHORIZATION"] = (
+            f"Bearer {access_token}"
+        )
+
+    return client
 
 
-# Provides a test client for sending API requests.
+# Creates an authenticated citizen for authorization tests.
 @pytest.fixture
-def client(app):
-    return app.test_client()
+def citizen_client(app, client):
+    with app.app_context():
+        citizen = User(
+            name="Weather Test Citizen",
+            email="weather-citizen@example.com",
+            role="citizen"
+        )
+        db.session.add(citizen)
+        db.session.commit()
+
+        access_token = create_access_token(
+            identity=str(citizen.id)
+        )
+
+        client.environ_base["HTTP_AUTHORIZATION"] = (
+            f"Bearer {access_token}"
+        )
+
+    return client
 
 
 # Tests successful retrieval of current weather.
@@ -77,8 +112,8 @@ def test_current_weather_runtime_error(client, monkeypatch):
     assert response.status_code == 502
 
 
-# Tests successful weather collection and storage.
-def test_collect_weather_success(client, monkeypatch):
+# Tests successful weather collection and storage by an administrator.
+def test_collect_weather_success(admin_client, monkeypatch):
     weather = {"temperature": 30, "rainfall": 2}
 
     class SavedRecord:
@@ -93,23 +128,42 @@ def test_collect_weather_success(client, monkeypatch):
         lambda data: SavedRecord()
     )
 
-    response = client.post(
+    response = admin_client.post(
         "/api/weather/collect?latitude=23&longitude=72"
     )
 
     assert response.status_code == 201
+    assert response.json["status"] == "success"
     assert response.json["data"]["database_record_id"] == 101
 
 
-# Tests missing coordinates during weather collection.
-def test_collect_weather_missing_coordinates(client):
-    response = client.post("/api/weather/collect")
+# Tests that unauthenticated users cannot collect weather.
+def test_collect_weather_unauthenticated(client):
+    response = client.post(
+        "/api/weather/collect?latitude=23&longitude=72"
+    )
+
+    assert response.status_code == 401
+
+
+# Tests that citizens cannot collect weather.
+def test_collect_weather_citizen_forbidden(citizen_client):
+    response = citizen_client.post(
+        "/api/weather/collect?latitude=23&longitude=72"
+    )
+
+    assert response.status_code == 403
+
+
+# Tests missing coordinates during authenticated weather collection.
+def test_collect_weather_missing_coordinates(admin_client):
+    response = admin_client.post("/api/weather/collect")
 
     assert response.status_code == 400
 
 
-# Tests invalid data during weather collection.
-def test_collect_weather_value_error(client, monkeypatch):
+# Tests invalid data during authenticated weather collection.
+def test_collect_weather_value_error(admin_client, monkeypatch):
     def mock_weather(latitude, longitude):
         raise ValueError("Invalid weather data")
 
@@ -118,15 +172,15 @@ def test_collect_weather_value_error(client, monkeypatch):
         mock_weather
     )
 
-    response = client.post(
+    response = admin_client.post(
         "/api/weather/collect?latitude=23&longitude=72"
     )
 
     assert response.status_code == 400
 
 
-# Tests external API failure during weather collection.
-def test_collect_weather_runtime_error(client, monkeypatch):
+# Tests external API failure during authenticated weather collection.
+def test_collect_weather_runtime_error(admin_client, monkeypatch):
     def mock_weather(latitude, longitude):
         raise RuntimeError("Weather provider unavailable")
 
@@ -135,7 +189,7 @@ def test_collect_weather_runtime_error(client, monkeypatch):
         mock_weather
     )
 
-    response = client.post(
+    response = admin_client.post(
         "/api/weather/collect?latitude=23&longitude=72"
     )
 

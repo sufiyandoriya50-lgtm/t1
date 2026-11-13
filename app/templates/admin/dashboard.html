@@ -1,0 +1,1558 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Dashboard | FloodShield Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+
+    <!-- HEADER -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <h2 class="dashboard-heading mb-1">FloodShield Control Center</h2>
+            <p class="text-muted mb-0">
+                Monitor community reports, historical floods, weather and flood risk.
+            </p>
+        </div>
+
+        <button
+            class="btn btn-outline-primary"
+            id="refreshDashboardButton"
+            type="button"
+        >
+            <span id="refreshButtonText">Refresh Data</span>
+        </button>
+    </div>
+
+    <!-- GLOBAL FEEDBACK -->
+    <div
+        id="dashboardError"
+        class="alert alert-danger d-none"
+        role="alert"
+        aria-live="assertive"
+    ></div>
+
+    <div
+        id="dashboardSuccess"
+        class="alert alert-success d-none"
+        role="status"
+        aria-live="polite"
+    ></div>
+
+    <!-- NAVIGATION -->
+    <ul class="nav nav-pills dashboard-nav mb-4" id="dashboardTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link active"
+                data-bs-toggle="pill"
+                data-bs-target="#overviewPanel"
+                type="button"
+                role="tab"
+            >
+                Overview
+            </button>
+        </li>
+
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link"
+                data-bs-toggle="pill"
+                data-bs-target="#reportsPanel"
+                type="button"
+                role="tab"
+            >
+                Reports
+            </button>
+        </li>
+
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link"
+                data-bs-toggle="pill"
+                data-bs-target="#historicalPanel"
+                type="button"
+                role="tab"
+            >
+                Historical Floods
+            </button>
+        </li>
+
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link"
+                data-bs-toggle="pill"
+                data-bs-target="#historicalWeatherPanel"
+                type="button"
+                role="tab"
+            >
+                Historical Weather
+            </button>
+        </li>
+
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link"
+                data-bs-toggle="pill"
+                data-bs-target="#weatherPanel"
+                type="button"
+                role="tab"
+            >
+                Weather
+            </button>
+        </li>
+
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link"
+                data-bs-toggle="pill"
+                data-bs-target="#riskPanel"
+                type="button"
+                role="tab"
+            >
+                Risk Assessment
+            </button>
+        </li>
+
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link"
+                data-bs-toggle="pill"
+                data-bs-target="#notificationsPanel"
+                type="button"
+                role="tab"
+            >
+                Notifications
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+
+        <!-- OVERVIEW -->
+        <section class="tab-pane fade show active" id="overviewPanel" role="tabpanel">
+            <div class="row g-3 mb-4">
+
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="card dashboard-card stat-card">
+                        <div class="card-body">
+                            <p class="stat-label">Total Reports</p>
+                            <h2 class="stat-value" id="totalReports">—</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="card dashboard-card stat-card">
+                        <div class="card-body">
+                            <p class="stat-label">Pending Reports</p>
+                            <h2 class="stat-value text-warning" id="pendingReports">—</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="card dashboard-card stat-card">
+                        <div class="card-body">
+                            <p class="stat-label">Verified Reports</p>
+                            <h2 class="stat-value text-success" id="verifiedReports">—</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="card dashboard-card stat-card">
+                        <div class="card-body">
+                            <p class="stat-label">Rejected Reports</p>
+                            <h2 class="stat-value text-danger" id="rejectedReports">—</h2>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="card dashboard-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <div>
+                            <h5 class="fw-bold mb-1">Recent Community Reports</h5>
+                            <p class="text-muted small mb-0">
+                                The five most recently submitted reports.
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            class="btn btn-outline-primary btn-sm"
+                            id="showAllReportsButton"
+                        >
+                            Manage Reports
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Coordinates</th>
+                                    <th>Status</th>
+                                    <th>Submitted</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentReports">
+                                <tr>
+                                    <td colspan="5" class="table-message">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- REPORT MANAGEMENT -->
+        <section class="tab-pane fade" id="reportsPanel" role="tabpanel">
+            <div class="card dashboard-card">
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <div>
+                            <h5 class="fw-bold mb-1">Report Management</h5>
+                            <p class="text-muted small mb-0">
+                                Search, inspect and moderate community reports.
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            class="btn btn-outline-secondary btn-sm"
+                            id="pendingQueueButton"
+                        >
+                            Pending Queue
+                        </button>
+                    </div>
+
+                    <form id="reportFilterForm" class="filter-panel mb-4">
+                        <div class="row g-3">
+
+                            <div class="col-12 col-md-6 col-xl-4">
+                                <label for="reportSearch" class="form-label">
+                                    Description Search
+                                </label>
+                                <input
+                                    type="search"
+                                    class="form-control"
+                                    id="reportSearch"
+                                    maxlength="200"
+                                    placeholder="Search descriptions"
+                                >
+                            </div>
+
+                            <div class="col-12 col-md-6 col-xl-2">
+                                <label for="statusFilter" class="form-label">Status</label>
+                                <select class="form-select" id="statusFilter">
+                                    <option value="">All statuses</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="verified">Verified</option>
+                                    <option value="rejected">Rejected</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12 col-md-6 col-xl-3">
+                                <label for="startDateFilter" class="form-label">
+                                    Start Date
+                                </label>
+                                <input
+                                    type="date"
+                                    class="form-control"
+                                    id="startDateFilter"
+                                >
+                            </div>
+
+                            <div class="col-12 col-md-6 col-xl-3">
+                                <label for="endDateFilter" class="form-label">
+                                    End Date
+                                </label>
+                                <input
+                                    type="date"
+                                    class="form-control"
+                                    id="endDateFilter"
+                                >
+                            </div>
+
+                            <div class="col-12">
+                                <hr>
+                                <h6 class="fw-bold mb-1">Geographic Search</h6>
+                                <p class="text-muted small mb-2">
+                                    Enter all three values to enable radius filtering.
+                                </p>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="latitudeFilter" class="form-label">Latitude</label>
+                                <input
+                                    type="number"
+                                    class="form-control"
+                                    id="latitudeFilter"
+                                    min="-90"
+                                    max="90"
+                                    step="any"
+                                >
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="longitudeFilter" class="form-label">Longitude</label>
+                                <input
+                                    type="number"
+                                    class="form-control"
+                                    id="longitudeFilter"
+                                    min="-180"
+                                    max="180"
+                                    step="any"
+                                >
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="radiusFilter" class="form-label">Radius (km)</label>
+                                <input
+                                    type="number"
+                                    class="form-control"
+                                    id="radiusFilter"
+                                    min="0.01"
+                                    max="500"
+                                    step="any"
+                                >
+                            </div>
+
+                            <div class="col-12 d-flex gap-2 flex-wrap">
+                                <button
+                                    type="submit"
+                                    class="btn btn-primary"
+                                    id="applyFiltersButton"
+                                >
+                                    Apply Filters
+                                </button>
+
+                                <button
+                                    type="button"
+                                    class="btn btn-outline-secondary"
+                                    id="resetFiltersButton"
+                                >
+                                    Reset
+                                </button>
+                            </div>
+
+                        </div>
+                    </form>
+
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <span id="reportResultSummary" class="text-muted small">
+                            Loading reports...
+                        </span>
+
+                        <div class="d-flex align-items-center gap-2">
+                            <label for="perPageSelect" class="small text-muted">Rows:</label>
+                            <select
+                                id="perPageSelect"
+                                class="form-select form-select-sm per-page-select"
+                            >
+                                <option value="10">10</option>
+                                <option value="20" selected>20</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table align-middle report-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Description</th>
+                                    <th>Coordinates</th>
+                                    <th>Depth</th>
+                                    <th>Status</th>
+                                    <th>Submitted</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reportTableBody">
+                                <tr>
+                                    <td colspan="7" class="table-message">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <span id="paginationInfo" class="text-muted small"></span>
+
+                        <div class="btn-group">
+                            <button
+                                class="btn btn-outline-primary btn-sm"
+                                id="previousPageButton"
+                                type="button"
+                            >
+                                Previous
+                            </button>
+                            <button
+                                class="btn btn-outline-primary btn-sm"
+                                id="nextPageButton"
+                                type="button"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- HISTORICAL FLOODS -->
+        <section class="tab-pane fade" id="historicalPanel" role="tabpanel">
+
+            <div class="card dashboard-card mb-4">
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <div>
+                            <h5 class="fw-bold mb-1">Historical Flood Events</h5>
+                            <p class="text-muted small mb-0">
+                                Search and maintain recorded historical flood events.
+                            </p>
+                        </div>
+
+                        <button
+                            class="btn btn-primary"
+                            type="button"
+                            data-bs-toggle="modal"
+                            data-bs-target="#historicalCreateModal"
+                        >
+                            Add Event
+                        </button>
+                    </div>
+
+                    <form id="historicalFilterForm" class="filter-panel mb-3">
+                        <div class="row g-3">
+
+                            <div class="col-md-3">
+                                <label class="form-label" for="historicalSeverity">
+                                    Severity
+                                </label>
+                                <select id="historicalSeverity" class="form-select">
+                                    <option value="">All severities</option>
+                                    <option value="low">Low</option>
+                                    <option value="moderate">Moderate</option>
+                                    <option value="high">High</option>
+                                    <option value="severe">Severe</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label" for="historicalStart">
+                                    Start date
+                                </label>
+                                <input id="historicalStart" type="date" class="form-control">
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label" for="historicalEnd">
+                                    End date
+                                </label>
+                                <input id="historicalEnd" type="date" class="form-control">
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label" for="historicalPageSize">
+                                    Rows
+                                </label>
+                                <select id="historicalPageSize" class="form-select">
+                                    <option value="10">10</option>
+                                    <option value="20" selected>20</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12">
+                                <button class="btn btn-primary" type="submit">
+                                    Search Events
+                                </button>
+                                <button
+                                    class="btn btn-outline-secondary ms-2"
+                                    id="historicalResetButton"
+                                    type="button"
+                                >
+                                    Reset
+                                </button>
+                            </div>
+
+                        </div>
+                    </form>
+
+                    <div id="historicalSummary" class="small text-muted mb-2">
+                        Events have not been loaded.
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Event</th>
+                                    <th>Date</th>
+                                    <th>Severity</th>
+                                    <th>Depth</th>
+                                    <th>Coordinates</th>
+                                    <th>Source</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historicalTableBody">
+                                <tr>
+                                    <td colspan="8" class="table-message">
+                                        Select this tab to load events.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-3">
+                        <span id="historicalPaginationInfo" class="small text-muted"></span>
+
+                        <div class="btn-group">
+                            <button
+                                id="historicalPrevious"
+                                class="btn btn-outline-primary btn-sm"
+                                type="button"
+                            >
+                                Previous
+                            </button>
+                            <button
+                                id="historicalNext"
+                                class="btn btn-outline-primary btn-sm"
+                                type="button"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="card dashboard-card">
+                <div class="card-body">
+                    <h5 class="fw-bold">Import Historical Events (CSV)</h5>
+                    <p class="small text-muted">
+                        Choose a CSV file matching the backend importer's expected column format.
+                    </p>
+
+                    <form
+                        id="historicalImportForm"
+                        class="d-flex flex-wrap gap-2 align-items-end"
+                    >
+                        <div class="flex-grow-1">
+                            <label for="historicalCsv" class="form-label">CSV file</label>
+                            <input
+                                class="form-control"
+                                id="historicalCsv"
+                                type="file"
+                                accept=".csv,text/csv"
+                                required
+                            >
+                        </div>
+
+                        <button
+                            class="btn btn-outline-primary"
+                            id="historicalImportButton"
+                            type="submit"
+                        >
+                            Import CSV
+                        </button>
+                    </form>
+
+                    <div
+                        id="historicalImportResult"
+                        class="small mt-3"
+                        aria-live="polite"
+                    ></div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- HISTORICAL WEATHER -->
+        <section class="tab-pane fade" id="historicalWeatherPanel" role="tabpanel">
+
+            <div class="card dashboard-card">
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <div>
+                            <h5 class="fw-bold mb-1">Historical Weather Observations</h5>
+                            <p class="text-muted small mb-0">
+                                Browse stored observations by date and location.
+                            </p>
+                        </div>
+
+                        <button
+                            class="btn btn-outline-secondary btn-sm"
+                            id="historicalWeatherResetButton"
+                            type="button"
+                        >
+                            Reset Filters
+                        </button>
+                    </div>
+
+                    <form id="historicalWeatherFilterForm" class="filter-panel mb-3">
+                        <div class="row g-3">
+
+                            <div class="col-md-3">
+                                <label class="form-label" for="historicalWeatherStart">
+                                    Start date
+                                </label>
+                                <input
+                                    id="historicalWeatherStart"
+                                    type="date"
+                                    class="form-control"
+                                >
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label" for="historicalWeatherEnd">
+                                    End date
+                                </label>
+                                <input
+                                    id="historicalWeatherEnd"
+                                    type="date"
+                                    class="form-control"
+                                >
+                            </div>
+
+                            <div class="col-md-2">
+                                <label class="form-label" for="historicalWeatherLatitude">
+                                    Latitude
+                                </label>
+                                <input
+                                    id="historicalWeatherLatitude"
+                                    type="number"
+                                    min="-90"
+                                    max="90"
+                                    step="any"
+                                    class="form-control"
+                                    placeholder="Optional"
+                                >
+                            </div>
+
+                            <div class="col-md-2">
+                                <label class="form-label" for="historicalWeatherLongitude">
+                                    Longitude
+                                </label>
+                                <input
+                                    id="historicalWeatherLongitude"
+                                    type="number"
+                                    min="-180"
+                                    max="180"
+                                    step="any"
+                                    class="form-control"
+                                    placeholder="Optional"
+                                >
+                            </div>
+
+                            <div class="col-md-2">
+                                <label class="form-label" for="historicalWeatherRadius">
+                                    Radius (km)
+                                </label>
+                                <input
+                                    id="historicalWeatherRadius"
+                                    type="number"
+                                    min="0.01"
+                                    step="any"
+                                    class="form-control"
+                                    placeholder="Optional"
+                                >
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label" for="historicalWeatherPageSize">
+                                    Rows per page
+                                </label>
+                                <select id="historicalWeatherPageSize" class="form-select">
+                                    <option value="10">10</option>
+                                    <option value="20" selected>20</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12">
+                                <button
+                                    class="btn btn-primary"
+                                    type="submit"
+                                    id="historicalWeatherSearchButton"
+                                >
+                                    Search Observations
+                                </button>
+                            </div>
+
+                        </div>
+                    </form>
+
+                    <div
+                        id="historicalWeatherError"
+                        class="alert alert-danger d-none"
+                        role="alert"
+                    ></div>
+
+                    <div id="historicalWeatherSummary" class="small text-muted mb-2">
+                        Select this tab to load observations.
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Recorded</th>
+                                    <th>Temperature</th>
+                                    <th>Rainfall</th>
+                                    <th>Wind</th>
+                                    <th>Weather Code</th>
+                                    <th>Coordinates</th>
+                                    <th>Source</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historicalWeatherTableBody">
+                                <tr>
+                                    <td colspan="9" class="table-message">
+                                        Observations have not been loaded.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <span
+                            id="historicalWeatherPaginationInfo"
+                            class="small text-muted"
+                        ></span>
+
+                        <div class="btn-group">
+                            <button
+                                id="historicalWeatherPrevious"
+                                class="btn btn-outline-primary btn-sm"
+                                type="button"
+                                disabled
+                            >
+                                Previous
+                            </button>
+                            <button
+                                id="historicalWeatherNext"
+                                class="btn btn-outline-primary btn-sm"
+                                type="button"
+                                disabled
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div
+                class="card dashboard-card mt-4 d-none"
+                id="historicalWeatherDetailsPanel"
+            >
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="fw-bold mb-3">Observation Details</h5>
+                        <button
+                            type="button"
+                            class="btn-close"
+                            id="historicalWeatherDetailsClose"
+                            aria-label="Close"
+                        ></button>
+                    </div>
+
+                    <div id="historicalWeatherDetailsContent"></div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- WEATHER -->
+        <section class="tab-pane fade" id="weatherPanel" role="tabpanel">
+
+            <div class="card dashboard-card mb-4">
+                <div class="card-body">
+                    <h5 class="fw-bold">Weather Monitoring</h5>
+                    <p class="small text-muted">
+                        Retrieve current weather, inspect stored observations and collect
+                        a new observation for valid coordinates.
+                    </p>
+
+                    <form id="weatherForm" class="filter-panel">
+                        <div class="row g-3">
+
+                            <div class="col-md-4">
+                                <label for="weatherLatitude" class="form-label">
+                                    Latitude
+                                </label>
+                                <input
+                                    id="weatherLatitude"
+                                    type="number"
+                                    min="-90"
+                                    max="90"
+                                    step="any"
+                                    class="form-control"
+                                    placeholder="22.3072"
+                                    required
+                                >
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="weatherLongitude" class="form-label">
+                                    Longitude
+                                </label>
+                                <input
+                                    id="weatherLongitude"
+                                    type="number"
+                                    min="-180"
+                                    max="180"
+                                    step="any"
+                                    class="form-control"
+                                    placeholder="73.1812"
+                                    required
+                                >
+                            </div>
+
+                            <div class="col-md-4 d-flex align-items-end flex-wrap gap-2">
+                                <button
+                                    class="btn btn-primary"
+                                    type="submit"
+                                    id="weatherLoadButton"
+                                >
+                                    Load Weather
+                                </button>
+
+                                <button
+                                    class="btn btn-success"
+                                    type="button"
+                                    id="weatherCollectButton"
+                                    disabled
+                                >
+                                    Collect &amp; Save
+                                </button>
+                            </div>
+
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+
+                <div class="col-md-6">
+                    <div class="card dashboard-card h-100">
+                        <div class="card-body">
+                            <h6 class="fw-bold">Current Weather</h6>
+                            <div id="weatherCurrent" class="module-output text-muted">
+                                Enter coordinates and load weather.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card dashboard-card h-100">
+                        <div class="card-body">
+                            <h6 class="fw-bold">Latest Stored Observation</h6>
+                            <div id="weatherLatest" class="module-output text-muted">
+                                Not loaded.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="card dashboard-card">
+                <div class="card-body">
+                    <h6 class="fw-bold">Weather History</h6>
+
+                    <form id="weatherHistoryForm" class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label" for="weatherStart">
+                                Start date
+                            </label>
+                            <input
+                                id="weatherStart"
+                                type="date"
+                                class="form-control"
+                                required
+                            >
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label" for="weatherEnd">
+                                End date
+                            </label>
+                            <input
+                                id="weatherEnd"
+                                type="date"
+                                class="form-control"
+                                required
+                            >
+                        </div>
+
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button class="btn btn-outline-primary" type="submit">
+                                Load Date Range
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Recorded</th>
+                                    <th>Temperature</th>
+                                    <th>Rainfall</th>
+                                    <th>Wind</th>
+                                    <th>Weather Code</th>
+                                    <th>Source</th>
+                                </tr>
+                            </thead>
+                            <tbody id="weatherHistoryBody">
+                                <tr>
+                                    <td colspan="6" class="table-message">
+                                        Load weather history to view records.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- RISK ASSESSMENT -->
+        <section class="tab-pane fade" id="riskPanel" role="tabpanel">
+
+            <div class="alert alert-warning small">
+                Risk assessments are estimates based on available data, not guarantees
+                of flooding or safety. Missing or stale data can reduce confidence.
+                Running an assessment may send nearby risk notifications.
+            </div>
+
+            <div class="card dashboard-card mb-4">
+                <div class="card-body">
+                    <h5 class="fw-bold">Run Risk Assessment</h5>
+
+                    <form id="riskForm" class="filter-panel">
+                        <div class="row g-3">
+
+                            <div class="col-md-4">
+                                <label for="riskLatitude" class="form-label">Latitude</label>
+                                <input
+                                    id="riskLatitude"
+                                    type="number"
+                                    min="-90"
+                                    max="90"
+                                    step="any"
+                                    class="form-control"
+                                    required
+                                >
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="riskLongitude" class="form-label">Longitude</label>
+                                <input
+                                    id="riskLongitude"
+                                    type="number"
+                                    min="-180"
+                                    max="180"
+                                    step="any"
+                                    class="form-control"
+                                    required
+                                >
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="riskRadius" class="form-label">Radius (km)</label>
+                                <input
+                                    id="riskRadius"
+                                    type="number"
+                                    min="0.1"
+                                    step="any"
+                                    value="5"
+                                    class="form-control"
+                                    required
+                                >
+                            </div>
+
+                            <div class="col-12">
+                                <button
+                                    class="btn btn-danger"
+                                    id="runRiskButton"
+                                    type="submit"
+                                >
+                                    Run Assessment
+                                </button>
+                            </div>
+
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card dashboard-card mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between flex-wrap gap-2">
+                        <h5 class="fw-bold">Latest Assessment</h5>
+
+                        <button
+                            class="btn btn-outline-primary btn-sm"
+                            id="loadLatestRiskButton"
+                            type="button"
+                        >
+                            Load Latest
+                        </button>
+                    </div>
+
+                    <div id="riskLatest" class="module-output text-muted mt-3">
+                        Enter coordinates and load or run an assessment.
+                    </div>
+                </div>
+            </div>
+
+            <div class="card dashboard-card">
+                <div class="card-body">
+                    <h5 class="fw-bold">Assessment History</h5>
+
+                    <button
+                        class="btn btn-outline-primary btn-sm mb-3"
+                        id="loadRiskHistoryButton"
+                        type="button"
+                    >
+                        Load History
+                    </button>
+
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Risk Level</th>
+                                    <th>Score</th>
+                                    <th>Completeness</th>
+                                    <th>Coordinates</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="riskHistoryBody">
+                                <tr>
+                                    <td colspan="6" class="table-message">
+                                        Load assessment history to view records.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-3">
+                        <span id="riskPaginationInfo" class="small text-muted"></span>
+
+                        <div class="btn-group">
+                            <button
+                                id="riskPrevious"
+                                class="btn btn-outline-primary btn-sm"
+                                type="button"
+                            >
+                                Previous
+                            </button>
+                            <button
+                                id="riskNext"
+                                class="btn btn-outline-primary btn-sm"
+                                type="button"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </section>
+
+        <!-- ADMIN ACCOUNT NOTIFICATIONS -->
+        <section class="tab-pane fade" id="notificationsPanel" role="tabpanel">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <div>
+                    <h3 class="h5 mb-1">My Notifications</h3>
+                    <p class="text-muted mb-0">View notifications delivered to the currently signed-in administrator account.</p>
+                </div>
+                <button class="btn btn-outline-primary" id="notificationsRefreshButton" type="button">Refresh Notifications</button>
+            </div>
+
+            <div class="card dashboard-card mb-4">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                        <div>
+                            <h4 class="h6 mb-1">Notification Preferences</h4>
+                            <p class="small text-muted mb-0">These settings apply only to this administrator account.</p>
+                        </div>
+                        <button class="btn btn-primary btn-sm" id="saveNotificationPreferencesButton" type="button">Save Preferences</button>
+                    </div>
+                    <div id="notificationPreferencesError" class="alert alert-danger d-none" role="alert"></div>
+                    <div class="row g-3">
+                        <div class="col-12 col-md-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="notificationPushEnabled">
+                                <label class="form-check-label fw-semibold" for="notificationPushEnabled">Push notifications</label>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="notificationHighRiskEnabled">
+                                <label class="form-check-label fw-semibold" for="notificationHighRiskEnabled">High-risk alerts</label>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="notificationSevereRiskEnabled">
+                                <label class="form-check-label fw-semibold" for="notificationSevereRiskEnabled">Severe-risk alerts</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card dashboard-card">
+                <div class="card-body">
+                    <div class="row g-3 align-items-end mb-3">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="notificationReadFilter">Read status</label>
+                            <select class="form-select" id="notificationReadFilter">
+                                <option value="">All notifications</option>
+                                <option value="false">Unread only</option>
+                                <option value="true">Read only</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label" for="notificationPageSize">Rows per page</label>
+                            <select class="form-select" id="notificationPageSize">
+                                <option value="10">10</option>
+                                <option value="20" selected>20</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-5">
+                            <div id="notificationSummary" class="small text-muted text-md-end" aria-live="polite"></div>
+                        </div>
+                    </div>
+                    <div id="notificationListError" class="alert alert-danger d-none" role="alert"></div>
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Notification</th>
+                                    <th>Type</th>
+                                    <th>Risk</th>
+                                    <th>Delivery</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="notificationTableBody">
+                                <tr><td colspan="7" class="table-message">Open this tab to load notifications.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+                        <span id="notificationPaginationInfo" class="small text-muted"></span>
+                        <div class="btn-group">
+                            <button id="notificationPrevious" class="btn btn-outline-primary btn-sm" type="button">Previous</button>
+                            <button id="notificationNext" class="btn btn-outline-primary btn-sm" type="button">Next</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+</div>
+
+<!-- REPORT DETAILS MODAL -->
+<div class="modal fade" id="reportDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title fw-bold" id="reportDetailsTitle">
+                        Report Details
+                    </h5>
+                    <p class="text-muted small mb-0" id="reportDetailsSubtitle"></p>
+                </div>
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Close"
+                ></button>
+            </div>
+
+            <div class="modal-body">
+                <div id="reportDetailsError" class="alert alert-danger d-none"></div>
+                <div id="reportDetailsLoading" class="text-center py-4">
+                    Loading...
+                </div>
+
+                <div id="reportDetailsContent" class="d-none">
+                    <div class="row g-3 mb-4">
+
+                        <div class="col-md-6">
+                            <div class="detail-panel">
+                                <h6>Report Information</h6>
+                                <p><strong>Status:</strong> <span id="detailStatus"></span></p>
+                                <p><strong>Submitted:</strong> <span id="detailCreatedAt"></span></p>
+                                <p><strong>Water Depth:</strong> <span id="detailWaterDepth"></span></p>
+                                <p><strong>Latitude:</strong> <span id="detailLatitude"></span></p>
+                                <p><strong>Longitude:</strong> <span id="detailLongitude"></span></p>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="detail-panel">
+                                <h6>Reporter</h6>
+                                <p><strong>Name:</strong> <span id="detailReporterName"></span></p>
+                                <p><strong>ID:</strong> <span id="detailReporterId"></span></p>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="detail-panel">
+                                <h6>Description</h6>
+                                <p
+                                    id="detailDescription"
+                                    class="mb-0 report-description"
+                                ></p>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="detail-panel">
+                                <h6>Photographs</h6>
+                                <div id="detailMedia" class="media-grid"></div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2">
+                        <button
+                            class="btn btn-success"
+                            id="verifyReportButton"
+                            type="button"
+                        >
+                            Verify
+                        </button>
+
+                        <button
+                            class="btn btn-danger"
+                            id="rejectReportButton"
+                            type="button"
+                        >
+                            Reject
+                        </button>
+
+                        <button
+                            class="btn btn-outline-primary"
+                            id="viewHistoryButton"
+                            type="button"
+                        >
+                            Moderation History
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- MODERATION HISTORY MODAL -->
+<div class="modal fade" id="historyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Moderation History</h5>
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Close"
+                ></button>
+            </div>
+
+            <div class="modal-body">
+                <div id="historyError" class="alert alert-danger d-none"></div>
+                <div id="historyContent"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODERATION CONFIRMATION MODAL -->
+<div class="modal fade" id="moderationConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title" id="moderationConfirmTitle">
+                    Confirm Action
+                </h5>
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Close"
+                ></button>
+            </div>
+
+            <div class="modal-body" id="moderationConfirmMessage"></div>
+
+            <div class="modal-footer">
+                <button
+                    class="btn btn-outline-secondary"
+                    data-bs-dismiss="modal"
+                    type="button"
+                >
+                    Cancel
+                </button>
+
+                <button
+                    class="btn btn-primary"
+                    id="confirmModerationButton"
+                    type="button"
+                >
+                    Confirm
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- ADD HISTORICAL FLOOD EVENT MODAL -->
+<div class="modal fade" id="historicalCreateModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+
+            <form id="historicalCreateForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Historical Flood Event</h5>
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Close"
+                    ></button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="row g-3">
+
+                        <div class="col-md-8">
+                            <label class="form-label" for="eventName">Event name *</label>
+                            <input
+                                id="eventName"
+                                class="form-control"
+                                maxlength="200"
+                                required
+                            >
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label" for="eventDate">Event date *</label>
+                            <input
+                                id="eventDate"
+                                type="date"
+                                class="form-control"
+                                required
+                            >
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="eventLatitude">Latitude *</label>
+                            <input
+                                id="eventLatitude"
+                                type="number"
+                                min="-90"
+                                max="90"
+                                step="any"
+                                class="form-control"
+                                required
+                            >
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="eventLongitude">Longitude *</label>
+                            <input
+                                id="eventLongitude"
+                                type="number"
+                                min="-180"
+                                max="180"
+                                step="any"
+                                class="form-control"
+                                required
+                            >
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="eventDepth">
+                                Water depth (cm)
+                            </label>
+                            <input
+                                id="eventDepth"
+                                type="number"
+                                min="0"
+                                step="any"
+                                class="form-control"
+                            >
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="eventSeverity">
+                                Severity *
+                            </label>
+                            <select id="eventSeverity" class="form-select" required>
+                                <option value="">Select severity</option>
+                                <option value="low">Low</option>
+                                <option value="moderate">Moderate</option>
+                                <option value="high">High</option>
+                                <option value="severe">Severe</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label" for="eventDescription">
+                                Description
+                            </label>
+                            <textarea
+                                id="eventDescription"
+                                class="form-control"
+                                rows="3"
+                                maxlength="5000"
+                            ></textarea>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="eventSource">Source</label>
+                            <input
+                                id="eventSource"
+                                class="form-control"
+                                maxlength="200"
+                            >
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="eventReference">
+                                Source reference
+                            </label>
+                            <input
+                                id="eventReference"
+                                class="form-control"
+                                maxlength="1000"
+                            >
+                        </div>
+
+                    </div>
+
+                    <div
+                        id="historicalCreateError"
+                        class="alert alert-danger d-none mt-3"
+                    ></div>
+                </div>
+
+                <div class="modal-footer">
+                    <button
+                        type="button"
+                        class="btn btn-outline-secondary"
+                        data-bs-dismiss="modal"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="submit"
+                        class="btn btn-primary"
+                        id="saveHistoricalEventButton"
+                    >
+                        Save Event
+                    </button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>
+
+<!-- HISTORICAL EVENT DETAILS MODAL -->
+<div class="modal fade" id="historicalDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Historical Event Details</h5>
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Close"
+                ></button>
+            </div>
+
+            <div class="modal-body" id="historicalDetailsContent"></div>
+        </div>
+    </div>
+</div>
+
+<!-- RISK DETAILS MODAL -->
+<div class="modal fade" id="riskDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Risk Assessment Details</h5>
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Close"
+                ></button>
+            </div>
+
+            <div class="modal-body" id="riskDetailsContent"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/admin.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/weather-actions.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/historical-weather.js') }}" defer></script>
+{% endblock %}

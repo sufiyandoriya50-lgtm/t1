@@ -11,7 +11,19 @@ class Config:
     # Security
     SECRET_KEY = os.getenv("SECRET_KEY")
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+        # JWT authentication supports API headers and secure browser cookies.
+    JWT_TOKEN_LOCATION = ["headers", "cookies"]
 
+    # Protect cookie-authenticated requests against CSRF.
+    JWT_COOKIE_CSRF_PROTECT = True
+    JWT_CSRF_IN_COOKIES = True
+    JWT_CSRF_METHODS = ["POST", "PUT", "PATCH", "DELETE"]
+    JWT_CSRF_HEADER_NAME = "X-CSRF-TOKEN"
+
+    # Browser cookie security.
+    JWT_COOKIE_SECURE = False
+    JWT_COOKIE_HTTPONLY = True
+    JWT_COOKIE_SAMESITE = "Lax"
     # Database
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL",
@@ -62,11 +74,13 @@ class ProductionConfig(Config):
     REQUIRE_FIREBASE = True
     DEBUG = False
     TESTING = False
-
+    
     # Require an explicitly configured PostgreSQL database in production.
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
     # Production must use shared rate-limit storage.
     RATELIMIT_STORAGE_URI = os.getenv("RATELIMIT_STORAGE_URI")
+    # Require HTTPS for administrator authentication cookies.
+    JWT_COOKIE_SECURE = True
     @classmethod
     def validate_database_config(cls):
         """Ensure production uses a valid PostgreSQL connection URL."""
