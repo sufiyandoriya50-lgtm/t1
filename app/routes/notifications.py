@@ -4,7 +4,7 @@ from app.extensions import db ,limiter
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from app.services.device_token_service import register_device_token
+from app.services.device_token_service import register_fcm_registration_token
 from app.models.notification import Notification
 from app.services.notification_preference_service import (
     get_or_create_preferences,
@@ -29,15 +29,15 @@ def register_device():
             "message": "A valid JSON request body is required"
         }), 400
 
-    fid = data.get("fid")
+    fcm_token = data.get("token")
     platform = data.get("platform")
 
     try:
         user_id = int(get_jwt_identity())
 
-        device = register_device_token(
+        device = register_fcm_registration_token(
             user_id=user_id,
-            fid=fid,
+            token=fcm_token,
             platform=platform
         )
 

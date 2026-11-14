@@ -52,7 +52,8 @@ def test_notification_sent_successfully(app, test_user, monkeypatch):
     with app.app_context():
         device = DeviceToken(
             user_id=test_user,
-            fid="test-firebase-installation-id",
+            token="test-fcm-registration-token",
+            fid=None,
             platform="android",
             is_active=True
         )
@@ -65,10 +66,17 @@ def test_notification_sent_successfully(app, test_user, monkeypatch):
             lambda: object()
         )
 
-        # Pretend Firebase successfully accepts the message.
+        # Pretend Firebase successfully accepts the message and capture
+        # the destination to prove the FCM token (not the legacy FID) is used.
+        sent_messages = []
+
+        def mock_send(message, app=None):
+            sent_messages.append(message)
+            return "mock-message-id"
+
         monkeypatch.setattr(
             "app.services.notification_service.messaging.send",
-            lambda message, app=None: "mock-message-id"
+            mock_send
         )
 
         notification = send_notification(
@@ -79,6 +87,8 @@ def test_notification_sent_successfully(app, test_user, monkeypatch):
         )
 
         assert notification.delivery_status == "sent"
+        assert len(sent_messages) == 1
+        assert sent_messages[0].token == "test-fcm-registration-token"
 
 
 # Tests that Firebase-invalid device tokens are deactivated.
@@ -91,7 +101,8 @@ def test_unregistered_device_token_is_deactivated(
     with app.app_context():
         device = DeviceToken(
             user_id=test_user,
-            fid="test-firebase-installation-id",
+            token="test-fcm-registration-token",
+            fid=None,
             platform="android",
             is_active=True
         )
@@ -129,7 +140,8 @@ def test_notification_remains_pending_without_firebase(app, test_user, monkeypat
     with app.app_context():
         device = DeviceToken(
             user_id=test_user,
-            fid="test-firebase-installation-id",
+            token="test-fcm-registration-token",
+            fid=None,
             platform="android",
             is_active=True
         )
@@ -264,8 +276,8 @@ def test_notification_creation_rolls_back_on_database_error(
             title="Flood Alert",
         ).count() == 0
 
-# Tests that active devices without Firebase Installation IDs are excluded.
-def test_legacy_token_only_devices_are_not_used(
+# Tests that legacy Firebase Installation IDs are not used as FCM destinations.
+def test_legacy_fid_only_devices_are_not_used(
     app,
     test_user,
     monkeypatch,
@@ -273,8 +285,8 @@ def test_legacy_token_only_devices_are_not_used(
     with app.app_context():
         device = DeviceToken(
             user_id=test_user,
-            token="legacy-registration-token",
-            fid=None,
+            token=None,
+            fid="legacy-firebase-installation-id",
             platform="android",
             is_active=True,
         )
@@ -284,7 +296,7 @@ def test_legacy_token_only_devices_are_not_used(
 
         def firebase_should_not_initialize():
             raise AssertionError(
-                "Firebase should not initialize without an FID device"
+                "Firebase should not initialize without an FCM token"
             )
 
         monkeypatch.setattr(
@@ -310,13 +322,15 @@ def test_notification_partial_delivery(
         devices = [
             DeviceToken(
                 user_id=test_user,
-                fid="firebase-installation-one",
+                token="fcm-registration-token-one",
+                fid=None,
                 platform="android",
                 is_active=True,
             ),
             DeviceToken(
                 user_id=test_user,
-                fid="firebase-installation-two",
+                token="fcm-registration-token-two",
+                fid=None,
                 platform="ios",
                 is_active=True,
             ),

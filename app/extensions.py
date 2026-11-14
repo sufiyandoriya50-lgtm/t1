@@ -32,5 +32,5 @@ jwt = JWTManager()
 # API rate-limiting extension.
 limiter = Limiter(
     key_func=get_remote_address,
-    default_limits=[]
+    default_limits=["300 per hour"]
 )

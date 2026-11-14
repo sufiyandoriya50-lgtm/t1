@@ -67,12 +67,12 @@ def test_register_android_device(
     notification_users,
     notification_clients
 ):
-    test_fid = "test-android-firebase-installation-id"
+    test_fcm_token = "test-android-fcm-registration-token"
 
     response = notification_clients["first"].post(
         "/api/notifications/device-token",
         json={
-            "fid": test_fid,
+            "token": test_fcm_token,
             "platform": "android"
         }
     )
@@ -90,17 +90,18 @@ def test_register_android_device(
     assert "token" not in response_data["device"]
 
     with app.app_context():
-        device = DeviceToken.query.filter_by(fid=test_fid).first()
+        device = DeviceToken.query.filter_by(token=test_fcm_token).first()
 
         assert device is not None
-        assert device.fid == test_fid
-        assert device.token is None
+        assert device.token == test_fcm_token
+        assert device.fid is None
         assert device.user_id == notification_users["first"]
 # Tests that invalid device registration data is rejected.
 @pytest.mark.parametrize(
     "payload",
     [
         {"platform": "android"},
+        {"fid": "legacy-fid", "platform": "android"},
         {"token": "test-token"},
         {"token": "", "platform": "android"},
         {"token": "test-token", "platform": "windows"}

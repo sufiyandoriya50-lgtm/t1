@@ -1,6 +1,7 @@
 import logging
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
 
 from app.extensions import db, migrate, jwt, limiter
@@ -23,6 +24,13 @@ from app.routes.admin_pages import admin_pages_bp
 from app.routes.citizen_management import citizen_management_bp
 
 from app.services.firebase_service import initialize_firebase
+from app.models.revoked_token import RevokedToken
+
+    
+from datetime import datetime, timezone
+    
+from app.models.revoked_token import RevokedToken
+from app.models.refresh_session import RefreshSession
 
 
 def validate_security_config(app):
@@ -106,6 +114,7 @@ def create_app(config_class=None):
     validate_security_config(app)
 
     if config_class.__name__ == "ProductionConfig":
+        config_class.validate_security_config()
         config_class.validate_database_config()
         config_class.validate_rate_limit_config()
 
@@ -127,7 +136,97 @@ def create_app(config_class=None):
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
+    @jwt.token_in_blocklist_loader
+    def check_if_token_revoked(jwt_header, jwt_payload):
+        jti = jwt_payload.get("jti")
+    
+        if not jti:
+            return True
+    
+        # Check individual token revocation.
+        token = RevokedToken.query.filter_by(jti=jti).first()
+    
+        if token is not None:
+            return True
+    
+        # Check session-family validity for access tokens.
+        if jwt_payload.get("type") == "access":
+            family_id = jwt_payload.get("sid")
+    
+            if family_id:
+                now = datetime.now(timezone.utc)
+    
+                active_session = RefreshSession.query.filter_by(
+                    family_id=family_id,
+                    revoked_at=None
+                ).filter(
+                    RefreshSession.expires_at > now
+                ).first()
+    
+                # No active refresh session means the family is revoked
+                # or expired, so reject its access tokens.
+                if active_session is None:
+                    return True
+    
+        return False
+
     limiter.init_app(app)
+
+    # Enable CORS only for explicitly configured origins. Native Android
+    # clients do not need browser CORS permissions.
+    allowed_origins = app.config.get("CORS_ORIGINS") or []
+    if allowed_origins:
+        CORS(
+            app,
+            resources={
+                r"/api/*": {
+                    "origins": allowed_origins,
+                    "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+                    "allow_headers": [
+                        "Authorization",
+                        "Content-Type",
+                        "X-CSRF-TOKEN",
+                    ],
+                    "expose_headers": [
+                        "X-RateLimit-Limit",
+                        "X-RateLimit-Remaining",
+                        "Retry-After",
+                    ],
+                    "supports_credentials": False,
+                    "max_age": 600,
+                }
+            },
+        )
+
+    @app.after_request
+    def add_security_headers(response):
+        """Apply baseline browser security headers to every response."""
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault(
+            "Referrer-Policy",
+            "strict-origin-when-cross-origin",
+        )
+        response.headers.setdefault(
+            "Permissions-Policy",
+            "camera=(), microphone=(), geolocation=(self)",
+        )
+
+        if request.is_secure and not app.config.get("TESTING"):
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains",
+            )
+
+        # Authentication responses contain credentials or identity data.
+        if request.path.startswith("/api/auth/") or request.path in {
+            "/admin/session",
+            "/admin/logout",
+        }:
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Pragma"] = "no-cache"
+
+        return response
 
     # Register API blueprints.
     app.register_blueprint(health_bp)

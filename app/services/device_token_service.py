@@ -67,3 +67,57 @@ def register_device_token(user_id, fid, platform):
         raise
 
     return device
+
+
+def register_fcm_registration_token(user_id, token, platform):
+    """Register an actual FCM registration token for push delivery.
+
+    Firebase Installation IDs are not valid FCM message destinations.
+    """
+    if isinstance(user_id, bool) or not isinstance(user_id, int) or user_id <= 0:
+        raise ValueError("A valid user ID is required")
+
+    user = db.session.get(User, user_id)
+    if user is None:
+        raise ValueError("User does not exist")
+
+    if not isinstance(token, str) or not token.strip():
+        raise ValueError("A valid FCM registration token is required")
+
+    token = token.strip()
+    if len(token) > 512:
+        raise ValueError("FCM registration token is too long")
+
+    if not isinstance(platform, str):
+        raise ValueError("Platform must be android or ios")
+
+    platform = platform.strip().lower()
+    if platform not in {"android", "ios"}:
+        raise ValueError("Platform must be android or ios")
+
+    device = DeviceToken.query.filter_by(token=token).first()
+
+    try:
+        if device is not None:
+            if device.user_id != user_id:
+                raise ValueError(
+                    "This FCM registration token is already registered to another user"
+                )
+            device.platform = platform
+            device.is_active = True
+        else:
+            device = DeviceToken(
+                user_id=user_id,
+                token=token,
+                fid=None,
+                platform=platform,
+                is_active=True,
+            )
+            db.session.add(device)
+
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+    return device

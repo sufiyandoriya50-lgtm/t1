@@ -4,7 +4,7 @@ import pytest
 from app import create_app
 from app.config import TestingConfig
 from app.extensions import db
-
+from datetime import datetime, timezone
 # Import models so SQLAlchemy registers their database tables.
 from app.models.user import User
 from app.models.risk_assessment import RiskAssessment
@@ -33,6 +33,7 @@ def auth_client(app):
         user = User(
             name="Risk Test User",
             email="risk_test@example.com",
+            email_verified_at=datetime.now(timezone.utc),
         )
         user.set_password("RiskTestPassword123")
 

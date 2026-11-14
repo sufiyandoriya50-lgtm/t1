@@ -233,8 +233,8 @@ def test_naive_report_timestamp_is_treated_as_utc():
     ],
 )
 def test_water_depth_score_boundaries(depth, expected_score):
-    now = datetime.now(timezone.utc)
     report = make_report(depth=depth)
+    now = datetime.now(timezone.utc)
 
     result = analyze_community_reports(
         [report],

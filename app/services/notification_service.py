@@ -97,15 +97,15 @@ def send_notification(
         db.session.rollback()
         raise
 
-    # Find all active devices registered to this user.
-
-    devices = DeviceToken.query.filter_by(
-         user_id=user_id,
-         is_active=True
-        ).all()
-
-     # Only devices with Firebase Installation IDs can receive FID-targeted messages.
-    devices = [device for device in devices if device.fid]
+    # Only actual FCM registration tokens can receive push messages.
+    # Legacy Firebase Installation IDs are retained in the database for
+    # compatibility but are never used as message destinations.
+    devices = DeviceToken.query.filter(
+        DeviceToken.user_id == user_id,
+        DeviceToken.is_active.is_(True),
+        DeviceToken.token.isnot(None),
+        DeviceToken.token != "",
+    ).all()
     if not devices:
         notification.delivery_status = "no_devices"
         db.session.commit()
@@ -133,7 +133,7 @@ def send_notification(
                 "notification_type": notification.notification_type,
                 "risk_level": notification.risk_level or ""
             },
-            fid=device.fid
+            token=device.token
         )
         try:
             messaging.send(

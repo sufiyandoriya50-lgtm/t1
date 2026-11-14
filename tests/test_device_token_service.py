@@ -142,3 +142,43 @@ def test_user_repr_does_not_expose_personal_information(app):
             user.firebase_uid is None
             or user.firebase_uid not in user_representation
              )
+
+
+def test_register_actual_fcm_registration_token(app):
+    from app.services.device_token_service import register_fcm_registration_token
+
+    with app.app_context():
+        user = get_device_test_user()
+        device = register_fcm_registration_token(
+            user_id=user.id,
+            token="actual-fcm-registration-token-123",
+            platform="android",
+        )
+
+        assert device.user_id == user.id
+        assert device.token == "actual-fcm-registration-token-123"
+        assert device.fid is None
+        assert device.is_active is True
+
+
+def test_fcm_token_cannot_be_claimed_by_another_user(app):
+    from app.services.device_token_service import register_fcm_registration_token
+
+    with app.app_context():
+        first = get_device_test_user()
+        second = User(name="Second FCM User", email="second-fcm@example.com")
+        db.session.add(second)
+        db.session.commit()
+
+        register_fcm_registration_token(
+            user_id=first.id,
+            token="shared-fcm-registration-token",
+            platform="android",
+        )
+
+        with pytest.raises(ValueError, match="already registered"):
+            register_fcm_registration_token(
+                user_id=second.id,
+                token="shared-fcm-registration-token",
+                platform="android",
+            )

@@ -8,7 +8,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from app.extensions import db
 
 
-# Represents a registered FloodShield citizen or administrator.
 class User(db.Model):
 
     __tablename__ = "users"
@@ -42,15 +41,20 @@ class User(db.Model):
             "(length(trim(phone_number)) > 0 AND length(phone_number) <= 20)",
             name="check_user_phone_number"
         ),
+        CheckConstraint(
+            "google_sub IS NULL OR "
+            "(length(trim(google_sub)) > 0 AND length(google_sub) <= 255)",
+            name="check_user_google_sub"
+        ),
     )
 
-    # Primary key.
     id = db.Column(db.Integer, primary_key=True)
 
-    # Basic user information.
-    name = db.Column(db.String(100), nullable=False)
+    name = db.Column(
+        db.String(100),
+        nullable=False
+    )
 
-    # Email is optional for phone-authenticated citizens.
     email = db.Column(
         db.String(120),
         unique=True,
@@ -58,27 +62,31 @@ class User(db.Model):
         index=True
     )
 
-    # Password is optional for phone-authenticated citizens.
     password_hash = db.Column(
         db.String(256),
         nullable=True
     )
 
-    # Firebase authentication identity.
+    # Retained temporarily for legacy Firebase account compatibility.
+    # New authentication will not depend on this field.
     firebase_uid = db.Column(
         db.String(128),
         unique=True,
         nullable=True
     )
-
-    # Phone number associated with Firebase authentication.
+    # Stores the verified Google account subject (sub).
+    google_sub = db.Column(
+        db.String(255),
+        unique=True,
+        nullable=True,
+        index=True
+    )
     phone_number = db.Column(
         db.String(20),
         unique=True,
         nullable=True
     )
 
-    # Defines citizen or administrator privileges.
     role = db.Column(
         db.String(20),
         nullable=False,
@@ -86,24 +94,31 @@ class User(db.Model):
         server_default="citizen"
     )
 
-    # Account creation timestamp (UTC).
+    email_verified_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=True
+    )
+
+    phone_verified_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=True
+    )
+
     created_at = db.Column(
         db.DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         nullable=False
     )
 
-    # Generates and stores a secure password hash.
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
-    # Checks a password without exposing the stored password hash.
     def check_password(self, password):
 
         if not self.password_hash or not isinstance(password, str):
             return False
 
         return check_password_hash(self.password_hash, password)
-    # Provides a privacy-safe representation of the user.
+
     def __repr__(self):
         return f"<User id={self.id} role={self.role}>"

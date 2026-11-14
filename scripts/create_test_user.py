@@ -1,38 +1,49 @@
+
+from getpass import getpass
+
 from app import create_app
-from app.config import DevelopmentConfig
 from app.extensions import db
 from app.models.user import User
 
-
-# Start the FloodShield application with development configuration
-app = create_app(DevelopmentConfig)
+app = create_app()
 
 with app.app_context():
+    print("\n=== FloodShield Create Test User ===\n")
 
-    # Look for an existing test user
-    user = User.query.filter_by(
-        email="f3floodshield_test@example.com"
-    ).first()
+    name = input("Enter user's name: ").strip()
+    email = input("Enter user's email: ").strip().lower()
 
-    if user is None:
+    if not name or not email:
+        print("\nName and email are required.")
+        raise SystemExit(1)
 
-        # Create a new test user
-        user = User(
-            name="FloodShield Test User",
-            email="f3floodshield_test@example.com"
-        )
+    existing_user = User.query.filter_by(email=email).first()
 
-        # Hash the password before storing it
-        user.set_password("FloodTest123!")
+    if existing_user:
+        print("\nA user with this email already exists.")
+        raise SystemExit(1)
 
-        # Save the user in the development database
-        db.session.add(user)
-        db.session.commit()
+    password = input("Enter password: ")
+    confirm_password = input("Confirm password: ")
 
-        print("Test user created successfully!")
+    if len(password) < 8:
+        print("\nPassword must contain at least 8 characters.")
+        raise SystemExit(1)
 
-    else:
-        print("Test user already exists!")
+    if password != confirm_password:
+        print("\nPasswords do not match.")
+        raise SystemExit(1)
 
-    print("User ID:", user.id)
+    user = User(
+        name=name,
+        email=email
+    )
+
+    user.set_password(password)
+
+    db.session.add(user)
+    db.session.commit()
+
+    print("\nUser created successfully!")
+    print("Name:", user.name)
     print("Email:", user.email)
